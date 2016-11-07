@@ -1,6 +1,8 @@
 package dbutils
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestBuildInsertSQL(t *testing.T) {
 	query, args, err := BuildInsertSQL("t_table", FieldMap{"name": "python"})

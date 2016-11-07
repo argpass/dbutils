@@ -12,48 +12,49 @@ type EventHandler func(e Event) (result interface{})
 
 type EventType reflect.Type
 
-var registry = registryType{}
+var registry = newRegistryDB()
 
-var registryLock = &sync.RWMutex{}
+type registryDB struct {
+	sync.RWMutex
+	registryMap map[EventType][]EventHandler
+}
 
-type registryType map[EventType] []EventHandler
+func newRegistryDB() *registryDB {
+	p := &registryDB{}
+	p.registryMap = map[EventType][]EventHandler{}
+	return p
+}
 
 // Subscribe connects a `EventHandler` with to a `EventType`
-func (re registryType) Subscribe(event Event, handler EventHandler) {
-	registryLock.Lock()
-	defer func(){
-		registryLock.Unlock()
-	}()
+func (re *registryDB) Subscribe(event Event, handler EventHandler) {
+	re.Lock()
+	defer re.Unlock()
 
 	tp := EventType(reflect.ValueOf(event).Type())
-	if s, ok := re[tp]; ok {
+	if s, ok := re.registryMap[tp]; ok {
 		s = append(s, handler)
 	}else{
-		re[tp]=[]EventHandler{handler}
+		re.registryMap[tp]=[]EventHandler{handler}
 	}
 }
 
 // NotifyAll notifies handlers with the `event`
-func (re registryType) NotifyAll(event Event)(results []interface{}) {
-	var handlers []EventHandler
-	// never to change registry when notifying
-	registryLock.RLock()
-	defer func(){
-		registryLock.RUnlock()
-	}()
+func (re *registryDB) NotifyAll(event Event)(results []interface{}) {
+	re.RLock()
+	defer re.RUnlock()
 
 	// get all handlers connected with the `event`
 	var ok = false
 	tp := EventType(reflect.ValueOf(event).Type())
-	handlers, ok = re[tp]
+	_, ok = re.registryMap[tp]
 	if !ok {
 		return results
 	}
 
 	// call all handlers on `event`, make results slice
-	for i, fn := range handlers {
+	for i, fn := range re.registryMap[tp] {
 		if results == nil {
-			results = make([]interface{}, len(handlers))
+			results = make([]interface{}, len(re.registryMap))
 		}
 		results[i] = fn(event)
 	}
